@@ -178,6 +178,7 @@ panic(char *s)
   exit(1);
 }
 
+//! fork with panic if return -1
 int
 fork1(void)
 {
