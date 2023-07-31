@@ -140,6 +140,7 @@ found:
   memset(&p->context, 0, sizeof(p->context));
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
+  p->syscall_trace = 0;
 
   return p;
 }
@@ -273,7 +274,7 @@ int
 fork(void)
 {
   int i, pid;
-  struct proc *np;
+  struct proc *np; // child process
   struct proc *p = myproc();
 
   // Allocate process.
@@ -304,6 +305,7 @@ fork(void)
   safestrcpy(np->name, p->name, sizeof(p->name));
 
   pid = np->pid;
+  np->syscall_trace = p->syscall_trace;
 
   release(&np->lock);
 
@@ -654,3 +656,6 @@ procdump(void)
     printf("\n");
   }
 }
+
+
+

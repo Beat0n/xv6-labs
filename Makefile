@@ -199,6 +199,7 @@ UPROGS=\
 	$U/_xargs\
 	$U/_uptime\
 	$U/_primes\
+	$U/_trace\
 
 
 
