@@ -6,7 +6,7 @@
 void run(int pipe_left[2]) {
     int min_prime;
     if (!read(pipe_left[0], &min_prime, sizeof(min_prime))) exit(0);
-    printf("prime: %d\n", min_prime);
+    printf("prime %d\n", min_prime);
 
     int pipe_right[2];
     pipe(pipe_right);
@@ -29,10 +29,7 @@ void run(int pipe_left[2]) {
 }
 
 int main(int argc, char* argv[]) {
-    if (argc < 2) {
-        fprintf(2, "usage: primes [num]");
-        exit(1);
-    }
+
     int _pipe[2];
     pipe(_pipe);
 
@@ -43,7 +40,7 @@ int main(int argc, char* argv[]) {
     } else {
         close(_pipe[0]);
         int i;
-        for (i = 2; i<=atoi(argv[1]); i++) {
+        for (i = 2; i<=35; i++) {
             write(_pipe[1], &i, sizeof(i));
         }
         close(_pipe[1]);
