@@ -27,13 +27,14 @@ void
 kinit()
 {
   initlock(&kmem.lock, "kmem");
-  freerange(end, (void*)PHYSTOP);
+  freerange(end, (void*)PHYSTOP); // 用户物理地址空间：[end, PHYSTOP]
 }
 
 void
 freerange(void *pa_start, void *pa_end)
 {
   char *p;
+  //
   p = (char*)PGROUNDUP((uint64)pa_start);
   for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE)
     kfree(p);
@@ -48,6 +49,7 @@ kfree(void *pa)
 {
   struct run *r;
 
+  // 如果物理地址pa没有对齐或没有在合法的地址空间[end, PHYSTOP], panic
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
 
@@ -56,6 +58,7 @@ kfree(void *pa)
 
   r = (struct run*)pa;
 
+  // 将刚free的page放到freelist前面，即指向freelist
   acquire(&kmem.lock);
   r->next = kmem.freelist;
   kmem.freelist = r;
