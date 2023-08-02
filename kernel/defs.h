@@ -171,6 +171,9 @@ int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
 int             vmprint(pagetable_t);
+pagetable_t     new_kvmmake();
+uint64          kvmpa(pagetable_t pgtbl, uint64 va);
+void            kvm_free_kernelpgtbl(pagetable_t pagetable);
 
 // plic.c
 void            plicinit(void);

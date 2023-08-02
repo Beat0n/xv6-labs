@@ -52,7 +52,6 @@ procinit(void)
   initlock(&wait_lock, "wait_lock");
   for(p = proc; p < &proc[NPROC]; p++) {
       initlock(&p->lock, "proc");
-      p->kstack = KSTACK((int) (p - proc));
   }
 }
 
@@ -135,6 +134,17 @@ found:
     return 0;
   }
 
+  // 为新进程创建独立的内核页表，并将内核所需要的各种映射添加到新页表上
+  p->kpagetable = new_kvmmake();
+
+  // 分配一个物理页，作为新进程的内核栈使用
+  char *pa = kalloc();
+  if(pa == 0)
+    panic("kalloc");
+  //printf("map krnlstack va: %p to pa: %p\n", K_STACK, pa);
+  kvmmap(p->kpagetable, K_STACK, (uint64)pa, PGSIZE, PTE_R | PTE_W);
+  p->kstack = K_STACK; 
+
   // Set up new context to start executing at forkret,
   // which returns to user space.
   memset(&p->context, 0, sizeof(p->context));
@@ -163,6 +173,20 @@ freeproc(struct proc *p)
   p->chan = 0;
   p->killed = 0;
   p->xstate = 0;
+  
+  // 释放进程的内核栈
+  void *kstack_pa = (void *)kvmpa(p->kpagetable, p->kstack);
+  // printf("trace: free kstack %p\n", kstack_pa);
+  kfree(kstack_pa);
+  p->kstack = 0;
+  
+  // 注意：此处不能使用 proc_freepagetable，因为其不仅会释放页表本身，还会把页表内所有的叶节点对应的物理页也释放掉。
+  // 这会导致内核运行所需要的关键物理页被释放，从而导致内核崩溃。
+  // 这里使用 kfree(p->kernelpgtbl) 也是不足够的，因为这只释放了**一级页表本身**，而不释放二级以及三级页表所占用的空间。
+  
+  // 递归释放进程独享的页表，释放页表本身所占用的空间，但**不释放页表指向的物理页**
+  kvm_free_kernelpgtbl(p->kpagetable);
+  p->kpagetable = 0;
   p->state = UNUSED;
 }
 
@@ -444,7 +468,8 @@ scheduler(void)
   for(;;){
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
-
+    
+    int found = 0;
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
@@ -453,16 +478,36 @@ scheduler(void)
         // before jumping back to us.
         p->state = RUNNING;
         c->proc = p;
+
+        // 切换到进程独立的内核页表
+        w_satp(MAKE_SATP(p->kpagetable));
+        sfence_vma(); // 清除快表缓存
+        
+        // 调度，执行进程
         swtch(&c->context, &p->context);
+
+        // 切换回全局内核页表
+        kvminithart();
 
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         c->proc = 0;
+
+        found = 1;
       }
       release(&p->lock);
     }
+#if !defined (LAB_FS)
+    if(found == 0) {
+      intr_on();
+      asm volatile("wfi");
+    }
+#else
+    ;
+#endif
   }
 }
+
 
 // Switch to scheduler.  Must hold only p->lock
 // and have changed proc->state. Saves and restores
