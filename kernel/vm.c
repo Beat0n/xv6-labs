@@ -438,14 +438,14 @@ int pgtblprint(pagetable_t pgtbl, int depth) {
   for (int i=0;i<512;i++) {
     pte_t pte = pgtbl[i];
     if(pte & PTE_V) {
-      uint64 child = PTE2PA(pte);
+      pagetable_t child = (pagetable_t)(PTE2PA(pte));
       printf("..");
       for(int j=0;j<depth;j++) {
         printf(" ..");
       }
-      printf("%d: pte %p pa %p\n", i, pte, PTE2PA(pte));
+      printf("%d: pte %p pa %p\n", i, pte, child);
       if ((pte & (PTE_R|PTE_W|PTE_X)) == 0) {
-        pgtblprint((pagetable_t)child, depth+1);
+        pgtblprint(child, depth+1);
       }
     } 
   }
@@ -456,4 +456,5 @@ int vmprint(pagetable_t pgtbl) {
   printf("page table %p\n", pgtbl);
   return pgtblprint(pgtbl,0);
 }
+
 
