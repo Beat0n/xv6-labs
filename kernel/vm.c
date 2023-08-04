@@ -62,7 +62,7 @@ pagetable_t new_kvmmake() {
   kvmmap(pgtbl, VIRTIO0, VIRTIO0, PGSIZE, PTE_R | PTE_W);
 
   // CLINT
-  kvmmap(pgtbl, CLINT, CLINT, 0x10000, PTE_R | PTE_W);
+  //kvmmap(pgtbl, CLINT, CLINT, 0x10000, PTE_R | PTE_W);
 
   // PLIC
   kvmmap(pgtbl, PLIC, PLIC, 0x400000, PTE_R | PTE_W);
@@ -87,6 +87,7 @@ void
 kvminit()
 {
   kernel_pagetable = new_kvmmake(); // 仍然需要有全局的内核页表，用于内核 boot 过程，以及无进程在运行时使用。
+  kvmmap(kernel_pagetable, CLINT, CLINT, 0x10000, PTE_R | PTE_W);
 }
 
 // Switch h/w page table register to the kernel's page table,
@@ -521,6 +522,49 @@ kvm_free_kernelpgtbl(pagetable_t pagetable)
     }
   }
   kfree((void*)pagetable); // 释放当前级别页表所占用空间
+}
+
+int uvmcopy2kvm(pagetable_t pgtbl, pagetable_t kpgtbl, uint64 start, uint64 sz) {
+  if (sz == 0)
+    return 0;
+  pte_t *pte;
+  uint64 pa, i;
+  uint flags;
+
+  // PGROUNDUP: prevent re-mapping already mapped pages (eg. when doing growproc)
+  for(i = PGROUNDUP(start); i < start + sz; i += PGSIZE){
+    if((pte = walk(pgtbl, i, 0)) == 0)
+      panic("uvmcopy2kvm: pte should exist");
+    if((*pte & PTE_V) == 0) {
+      printf("start:%d, i:%d\n", start, i);
+      panic("uvmcopy2kvm: page not present");
+    }
+    pa = PTE2PA(*pte);
+    // `& ~PTE_U` 表示将该页的权限设置为非用户页
+    // 必须设置该权限，RISC-V 中内核是无法直接访问用户页的。
+    flags = PTE_FLAGS(*pte) & ~PTE_U;
+    if(mappages(kpgtbl, i, PGSIZE, pa, flags) != 0){
+      goto err;
+    }
+  }
+
+  return 0;
+
+ err:
+  uvmunmap(kpgtbl, PGROUNDUP(start), (i - PGROUNDUP(start)) / PGSIZE, 0);
+  return -1;
+}
+
+uint64 kvmdealloc(pagetable_t pagetable, uint64 oldsz, uint64 newsz){
+  if(newsz >= oldsz)
+    return oldsz;
+
+  if(PGROUNDUP(newsz) < PGROUNDUP(oldsz)){
+    int npages = (PGROUNDUP(oldsz) - PGROUNDUP(newsz)) / PGSIZE;
+    uvmunmap(pagetable, PGROUNDUP(newsz), npages, 0);
+  }
+
+  return newsz;
 }
 
 

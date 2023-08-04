@@ -174,6 +174,9 @@ int             vmprint(pagetable_t);
 pagetable_t     new_kvmmake();
 uint64          kvmpa(pagetable_t pgtbl, uint64 va);
 void            kvm_free_kernelpgtbl(pagetable_t pagetable);
+int             uvmcopy2kvm(pagetable_t pgtbl, pagetable_t kpgtbl, uint64 start, uint64 sz);
+uint64          kvmdealloc(pagetable_t, uint64, uint64);
+
 
 // plic.c
 void            plicinit(void);
@@ -186,5 +189,10 @@ void            virtio_disk_init(void);
 void            virtio_disk_rw(struct buf *, int);
 void            virtio_disk_intr(void);
 
+// vmcopyin.c
+int             copyin_new(pagetable_t kpgtbl, char *dst, uint64 srcva, uint64 len);
+int             copyinstr_new(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max);
+
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
+
