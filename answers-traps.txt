@@ -1,0 +1,6 @@
+a2
+li a1,12
+0x630
+0x38
+48 10 e1 57 6f 72 6c 64 "He11o World"; 0x726c6400; no
+x=3 y=?;depends on the former value of register a2
