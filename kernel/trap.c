@@ -16,6 +16,28 @@ void kernelvec();
 
 extern int devintr();
 
+int isPagefault(uint64 va){
+  struct proc *p = myproc();
+  pte_t* pte;
+
+  return va < p->sz && PGROUNDDOWN(va) != r_sp() && (((pte = walk(p->pagetable, va, 0)) == 0) || ((*pte & PTE_V) == 0));
+}
+
+void uvmlazyalloc(uint64 va) {
+  struct proc* p = myproc();
+  uint64 oldsz = PGROUNDDOWN(va);
+  //printf("r_scau:%d, oldsz:%d, newsz:%d\n", r_scau, r_stval(), newsz);
+  char* mem = kalloc();
+  if(mem == 0){
+    p->killed = 1;
+  }
+  memset(mem, 0, PGSIZE);
+  if(mappages(p->pagetable, oldsz, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
+    kfree(mem);
+    p->killed = 1;
+  }
+}
+
 void
 trapinit(void)
 {
@@ -69,24 +91,9 @@ usertrap(void)
     // ok
   } else {
     uint64 r_scau = r_scause();
-    if (r_scau == 13 || r_scau == 15) {
-      p->trapframe->epc += 4;
-      uint64 oldsz = PGROUNDDOWN(r_stval());
-      uint64 newsz = p->sz;
-      printf("r_scau:%d, oldsz:%d, newsz:%d\n", r_scau, r_stval(), newsz);
-      for(uint64 sz = oldsz;sz < newsz; sz+=PGSIZE) {
-        char* mem = kalloc();
-        if(mem == 0){
-          uvmdealloc(p->pagetable, sz, oldsz);
-          break;
-        }
-        memset(mem, 0, PGSIZE);
-        if(mappages(p->pagetable, sz, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
-          kfree(mem);
-          uvmdealloc(p->pagetable, sz, oldsz);
-          break;
-        }
-      }
+    uint64 va = r_stval();
+    if ((r_scau == 13 || r_scau == 15) && isPagefault(va)) {
+      uvmlazyalloc(va);
     } else {
         printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
         printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());

@@ -200,6 +200,7 @@ UPROGS=\
 	$U/_uptime\
 	$U/_primes\
 	$U/_trace\
+	$U/_lazytest\
 
 
 
