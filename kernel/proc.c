@@ -135,10 +135,15 @@ found:
     return 0;
   }
   // handler alarm interval
-  p->alarm_interval = (1<<64);
-  p->alarm_ticks = (1<<64);
+  p->alarm_interval = 0;
+  p->alarm_ticks = 0;
   p->handler = 0;
   p->alarm_on = 0;
+  if((p->alarm_trapframe = (struct trapframe *)kalloc()) == 0){
+    freeproc(p);
+    release(&p->lock);
+    return 0;
+  } 
 
   // Set up new context to start executing at forkret,
   // which returns to user space.
@@ -168,6 +173,12 @@ freeproc(struct proc *p)
   p->chan = 0;
   p->killed = 0;
   p->xstate = 0;
+  p->alarm_ticks = 0;
+  p->alarm_interval = 0;
+  p->alarm_on = 0;
+  p->handler = 0;
+  if(p->alarm_trapframe)
+    kfree((void*)p->alarm_trapframe);
   p->state = UNUSED;
 }
 
