@@ -68,9 +68,30 @@ usertrap(void)
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
-    printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
-    printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
-    p->killed = 1;
+    uint64 r_scau = r_scause();
+    if (r_scau == 13 || r_scau == 15) {
+      p->trapframe->epc += 4;
+      uint64 oldsz = PGROUNDDOWN(r_stval());
+      uint64 newsz = p->sz;
+      printf("r_scau:%d, oldsz:%d, newsz:%d\n", r_scau, r_stval(), newsz);
+      for(uint64 sz = oldsz;sz < newsz; sz+=PGSIZE) {
+        char* mem = kalloc();
+        if(mem == 0){
+          uvmdealloc(p->pagetable, sz, oldsz);
+          break;
+        }
+        memset(mem, 0, PGSIZE);
+        if(mappages(p->pagetable, sz, PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) != 0){
+          kfree(mem);
+          uvmdealloc(p->pagetable, sz, oldsz);
+          break;
+        }
+      }
+    } else {
+        printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
+        printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+        p->killed = 1;
+      }
   }
 
   if(p->killed)
