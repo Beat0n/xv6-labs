@@ -51,13 +51,9 @@ thread(void *xa)
   int i;
 
   for (i = 0; i < 200; i++) {
-    printf("i:%d\n", i);
     int t = bstate.round;
-    printf("bstate.round:%d\n", bstate.round);
-    printf("bstate.nthread:%d\n", bstate.nthread);
     assert (i == t);
     barrier();
-    printf("complete: round %d\n", i);
     usleep(random() % 100);
   }
 
