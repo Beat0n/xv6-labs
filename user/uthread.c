@@ -94,8 +94,8 @@ thread_create(void (*func)())
   for (t = all_thread; t < all_thread + MAX_THREAD; t++) {
     if (t->state == FREE) break;
   }
-  t->state = RUNNABLE;
   // YOUR CODE HERE
+  t->state = RUNNABLE;
   t->context.ra = (uint64)func;
   t->context.sp = (uint64)(t->stack + STACK_SIZE - 1);
 }
