@@ -52,7 +52,6 @@ procinit(void)
   initlock(&wait_lock, "wait_lock");
   for(p = proc; p < &proc[NPROC]; p++) {
       initlock(&p->lock, "proc");
-      p->kstack = KSTACK((int) (p - proc));
   }
 }
 
@@ -135,9 +134,22 @@ found:
     return 0;
   }
 
+  p->kernel_pagetable = proc_kernel_pagetable();
+  if(p->kernel_pagetable == 0){
+    freeproc(p);
+    release(&p->lock);
+    return 0;
+  }
+
   // Set up new context to start executing at forkret,
   // which returns to user space.
   memset(&p->context, 0, sizeof(p->context));
+  // Set up kernel stack
+  char *pa = kalloc();
+  if(pa == 0)
+    panic("allocproc");
+  p->kstack = KSTACK(0);
+  kvmmap(p->kernel_pagetable, p->kstack, (uint64)pa, PGSIZE, PTE_R | PTE_W);
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
@@ -156,6 +168,12 @@ freeproc(struct proc *p)
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
   p->pagetable = 0;
+  uint64 kstack_pa = kvmpa(p->kernel_pagetable, p->kstack);
+  kfree((void*)kstack_pa);
+  p->kstack = 0;
+  if(p->kernel_pagetable)
+    proc_free_kernel_pagetable(p->kernel_pagetable);
+  p->kernel_pagetable = 0;
   p->sz = 0;
   p->pid = 0;
   p->parent = 0;
@@ -453,7 +471,9 @@ scheduler(void)
         // before jumping back to us.
         p->state = RUNNING;
         c->proc = p;
+        proc_inithart(p->kernel_pagetable);
         swtch(&c->context, &p->context);
+        kvminithart();
 
         // Process is done running for now.
         // It should have changed its p->state before coming back.
